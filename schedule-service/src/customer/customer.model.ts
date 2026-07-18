@@ -1,23 +1,23 @@
 import { Field, ID, ObjectType } from '@nestjs/graphql';
 import { Schedule } from '../schedule/schedule.model';
 
-@ObjectType()
+@ObjectType({ description: 'Customer / pasien yang membuat jadwal konsultasi' })
 export class Customer {
-  @Field(() => ID)
+  @Field(() => ID, { description: 'Unique identifier' })
   id: string;
 
-  @Field()
+  @Field({ description: 'Nama lengkap customer' })
   name: string;
 
-  @Field()
+  @Field({ description: 'Email (unique)' })
   email: string;
 
-  @Field()
+  @Field({ description: 'Waktu pendaftaran' })
   createdAt: Date;
 
-  @Field()
+  @Field({ description: 'Waktu terakhir update' })
   updatedAt: Date;
 
-  @Field(() => [Schedule], { nullable: true })
+  @Field(() => [Schedule], { nullable: true, description: 'Daftar jadwal milik customer' })
   schedules?: Schedule[];
 }

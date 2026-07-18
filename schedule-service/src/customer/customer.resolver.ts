@@ -9,56 +9,56 @@ import { AuthGuard } from '../auth/auth.guard';
 export class CustomerResolver {
   constructor(private customerService: CustomerService) {}
 
-  @Mutation(() => Customer)
+  @Mutation(() => Customer, { description: 'Membuat customer baru (email harus unique)' })
   async createCustomer(
-    @Args('name') name: string,
-    @Args('email') email: string,
+    @Args('name', { description: 'Nama lengkap customer' }) name: string,
+    @Args('email', { description: 'Email customer (harus unique)' }) email: string,
   ) {
     return this.customerService.create(name, email);
   }
 
-  @Query(() => CustomerListResponse)
+  @Query(() => CustomerListResponse, { description: 'List semua customer dengan pagination' })
   async customers(
-    @Args('page', { type: () => Int, nullable: true, defaultValue: 1 }) page: number,
-    @Args('limit', { type: () => Int, nullable: true, defaultValue: 10 }) limit: number,
+    @Args('page', { type: () => Int, nullable: true, defaultValue: 1, description: 'Halaman (default: 1)' }) page: number,
+    @Args('limit', { type: () => Int, nullable: true, defaultValue: 10, description: 'Jumlah item per halaman (default: 10)' }) limit: number,
   ) {
     return this.customerService.findAll(page, limit);
   }
 
-  @Query(() => Customer)
-  async customer(@Args('id') id: string) {
+  @Query(() => Customer, { description: 'Get customer by ID' })
+  async customer(@Args('id', { description: 'UUID customer' }) id: string) {
     return this.customerService.findOne(id);
   }
 
-  @Mutation(() => Customer)
+  @Mutation(() => Customer, { description: 'Update data customer' })
   async updateCustomer(
-    @Args('id') id: string,
-    @Args('name', { nullable: true }) name?: string,
-    @Args('email', { nullable: true }) email?: string,
+    @Args('id', { description: 'UUID customer' }) id: string,
+    @Args('name', { nullable: true, description: 'Nama baru (opsional)' }) name?: string,
+    @Args('email', { nullable: true, description: 'Email baru (opsional)' }) email?: string,
   ) {
     return this.customerService.update(id, name, email);
   }
 
-  @Mutation(() => Boolean)
-  async deleteCustomer(@Args('id') id: string) {
+  @Mutation(() => Boolean, { description: 'Hapus customer (cascade: jadwal terkait ikut terhapus)' })
+  async deleteCustomer(@Args('id', { description: 'UUID customer' }) id: string) {
     return this.customerService.delete(id);
   }
 }
 
-@ObjectType()
+@ObjectType({ description: 'List response dengan pagination metadata' })
 class CustomerListResponse {
-  @Field(() => [Customer])
+  @Field(() => [Customer], { description: 'Daftar customer' })
   items: Customer[];
 
-  @Field(() => Int)
+  @Field(() => Int, { description: 'Total seluruh customer' })
   total: number;
 
-  @Field(() => Int)
+  @Field(() => Int, { description: 'Halaman saat ini' })
   page: number;
 
-  @Field(() => Int)
+  @Field(() => Int, { description: 'Jumlah item per halaman' })
   limit: number;
 
-  @Field(() => Int)
+  @Field(() => Int, { description: 'Total halaman' })
   totalPages: number;
 }

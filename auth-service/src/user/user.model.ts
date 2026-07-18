@@ -1,16 +1,16 @@
 import { Field, ID, ObjectType } from '@nestjs/graphql';
 
-@ObjectType()
+@ObjectType({ description: 'User akun untuk autentikasi' })
 export class User {
-  @Field(() => ID)
+  @Field(() => ID, { description: 'Unique identifier' })
   id: string;
 
-  @Field()
+  @Field({ description: 'Email (unique)' })
   email: string;
 
-  @Field()
+  @Field({ description: 'Waktu pendaftaran' })
   createdAt: Date;
 
-  @Field()
+  @Field({ description: 'Waktu terakhir update' })
   updatedAt: Date;
 }

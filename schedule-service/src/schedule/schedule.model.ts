@@ -2,32 +2,32 @@ import { Field, ID, ObjectType } from '@nestjs/graphql';
 import { Customer } from '../customer/customer.model';
 import { Doctor } from '../doctor/doctor.model';
 
-@ObjectType()
+@ObjectType({ description: 'Jadwal konsultasi antara customer dan dokter' })
 export class Schedule {
-  @Field(() => ID)
+  @Field(() => ID, { description: 'Unique identifier' })
   id: string;
 
-  @Field()
+  @Field({ description: 'Tujuan konsultasi' })
   objective: string;
 
-  @Field()
+  @Field({ description: 'ID customer yang dijadwalkan' })
   customerId: string;
 
-  @Field()
+  @Field({ description: 'ID dokter yang dijadwalkan' })
   doctorId: string;
 
-  @Field()
+  @Field({ description: 'Waktu konsultasi (ISO 8601)' })
   scheduledAt: Date;
 
-  @Field()
+  @Field({ description: 'Waktu pembuatan jadwal' })
   createdAt: Date;
 
-  @Field()
+  @Field({ description: 'Waktu terakhir update' })
   updatedAt: Date;
 
-  @Field(() => Customer)
+  @Field(() => Customer, { nullable: true, description: 'Data customer terkait' })
   customer?: Customer;
 
-  @Field(() => Doctor)
+  @Field(() => Doctor, { nullable: true, description: 'Data dokter terkait' })
   doctor?: Doctor;
 }

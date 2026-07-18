@@ -18,6 +18,7 @@ import { ScheduleModule } from './schedule/schedule.module';
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
       playground: true,
+      introspection: true,
       context: ({ req }: { req: any }) => ({ req }),
     }),
     PrismaModule,
