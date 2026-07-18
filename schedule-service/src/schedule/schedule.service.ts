@@ -1,12 +1,17 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
+
+const CACHE_TTL = 60;
 
 @Injectable()
 export class ScheduleService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   async create(objective: string, customerId: string, doctorId: string, scheduledAt: Date) {
-    // Validate customer exists
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
     });
@@ -15,7 +20,6 @@ export class ScheduleService {
       throw new NotFoundException('Customer not found');
     }
 
-    // Validate doctor exists
     const doctor = await this.prisma.doctor.findUnique({
       where: { id: doctorId },
     });
@@ -24,7 +28,6 @@ export class ScheduleService {
       throw new NotFoundException('Doctor not found');
     }
 
-    // Check for schedule conflict (same doctor at same time)
     const existingSchedule = await this.prisma.schedule.findFirst({
       where: {
         doctorId,
@@ -36,7 +39,7 @@ export class ScheduleService {
       throw new ConflictException('Doctor already has a schedule at this time');
     }
 
-    return this.prisma.schedule.create({
+    const schedule = await this.prisma.schedule.create({
       data: {
         objective,
         customerId,
@@ -48,6 +51,10 @@ export class ScheduleService {
         doctor: true,
       },
     });
+
+    await this.invalidateListCache();
+
+    return schedule;
   }
 
   async findAll(
@@ -56,6 +63,13 @@ export class ScheduleService {
     customerId?: string,
     doctorId?: string,
   ) {
+    const cacheKey = `schedules:list:${page}:${limit}:${customerId ?? 'all'}:${doctorId ?? 'all'}`;
+    const cached = await this.redis.client.get(cacheKey);
+
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -76,13 +90,17 @@ export class ScheduleService {
       this.prisma.schedule.count({ where }),
     ]);
 
-    return {
+    const result = {
       items,
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
     };
+
+    await this.redis.client.set(cacheKey, JSON.stringify(result), 'EX', CACHE_TTL);
+
+    return result;
   }
 
   async findOne(id: string) {
@@ -108,6 +126,15 @@ export class ScheduleService {
       where: { id },
     });
 
+    await this.invalidateListCache();
+
     return true;
+  }
+
+  private async invalidateListCache() {
+    const keys = await this.redis.client.keys('schedules:list:*');
+    if (keys.length > 0) {
+      await this.redis.client.del(...keys);
+    }
   }
 }

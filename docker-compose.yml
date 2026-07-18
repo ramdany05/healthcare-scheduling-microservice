@@ -20,6 +20,20 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - healthcare-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   auth-service:
     build:
       context: ./auth-service
@@ -29,11 +43,15 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/auth_db?schema=public
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       JWT_EXPIRES_IN: 24h
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       PORT: 3001
     ports:
       - "3001:3001"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - healthcare-network
@@ -47,11 +65,15 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/schedule_db?schema=public
       AUTH_SERVICE_URL: http://auth-service:3001/graphql
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       PORT: 3002
     ports:
       - "3002:3002"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       auth-service:
         condition: service_started
