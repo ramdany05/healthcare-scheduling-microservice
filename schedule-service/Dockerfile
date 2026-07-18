@@ -34,7 +34,7 @@ RUN chmod +x /docker-entrypoint.sh
 
 ENV NODE_ENV=production
 
-EXPOSE 3001
+EXPOSE 3002
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["node", "dist/main.js"]

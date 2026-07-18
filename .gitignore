@@ -27,5 +27,8 @@ npm-debug.log*
 # Prisma
 generated/
 
+# GraphQL auto-generated schema
+src/schema.gql
+
 # Testing
 coverage/
