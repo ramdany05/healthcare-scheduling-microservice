@@ -68,6 +68,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       PORT: 3002
+    env_file:
+      - ./schedule-service/.env
     ports:
       - "3002:3002"
     depends_on:

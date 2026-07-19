@@ -11,32 +11,37 @@ A microservice-based healthcare scheduling system built with NestJS, GraphQL, Pr
                                     │
                     ┌───────────────┴───────────────┐
                     ▼                               ▼
-        ┌───────────────────┐           ┌───────────────────┐
-        │   Auth Service    │           │ Schedule Service  │
-        │   (Port: 3001)    │           │   (Port: 3002)    │
-        │                   │           │                   │
-        │ - register        │◄──────────│ - Customer CRUD   │
-        │ - login           │  validate │ - Doctor CRUD     │
-        │ - validateToken   │   token   │ - Schedule CRUD   │
-        └─────────┬─────────┘           └─────────┬─────────┘
-                  │                               │
-                  ▼                               ▼
-        ┌─────────────────┐           ┌─────────────────┐
-        │   PostgreSQL    │           │   PostgreSQL    │
-        │   (auth_db)     │           │ (schedule_db)   │
-        └─────────────────┘           └─────────────────┘
+        ┌───────────────────┐           ┌───────────────────────────────────┐
+        │   Auth Service    │           │        Schedule Service            │
+        │   (Port: 3001)    │           │        (Port: 3002)                │
+        │                   │           │                                   │
+        │ - register        │◄──────────│ - Customer CRUD                   │
+        │ - login           │  validate │ - Doctor CRUD                     │
+        │ - validateToken   │   token   │ - Schedule CRUD                   │
+        └─────────┬─────────┘           │ - Redis Caching                   │
+                  │                     │ - Email Notification (Gmail SMTP) │
+                  │                     └──────┬──────────────┬─────────────┘
+                  │                            │              │
+                  ▼                            ▼              ▼
+        ┌─────────────────┐          ┌──────────────┐ ┌──────────────┐
+        │   PostgreSQL    │          │    Redis      │ │  Gmail SMTP  │
+        │ (auth_db +      │          │   (cache)     │ │  (email)     │
+        │  schedule_db)   │          └──────────────┘ └──────────────┘
+        └─────────────────┘
 ```
 
 ## Tech Stack
 
-| Component     | Technology                          |
-|---------------|-------------------------------------|
-| Framework     | NestJS                              |
-| Database      | PostgreSQL                          |
-| API           | GraphQL (code-first with Apollo)    |
-| ORM           | Prisma                              |
-| Authentication| JWT                                 |
-| Container     | Docker & Docker Compose             |
+| Component      | Technology                          |
+|----------------|-------------------------------------|
+| Framework      | NestJS                              |
+| Database       | PostgreSQL                          |
+| API            | GraphQL (code-first with Apollo)    |
+| ORM            | Prisma                              |
+| Authentication | JWT                                 |
+| Caching        | Redis                               |
+| Email          | Nodemailer (Gmail SMTP)             |
+| Container      | Docker & Docker Compose             |
 
 ## Getting Started
 
@@ -44,6 +49,7 @@ A microservice-based healthcare scheduling system built with NestJS, GraphQL, Pr
 
 - Docker & Docker Compose
 - Node.js 20+ (for local development)
+- Gmail account with App Password (for email notifications)
 
 ### Running with Docker Compose
 
@@ -53,17 +59,26 @@ git clone <repository-url>
 cd healthcare-scheduling
 ```
 
-2. Start all services:
+2. Set up Gmail SMTP (for email notifications):
 ```bash
-docker-compose up -d --build
+# Create .env file in schedule-service directory
+cat > schedule-service/.env << EOF
+SMTP_USER=youraccount@gmail.com
+SMTP_PASS=your_app_password
+EOF
 ```
 
-3. Wait for all services to be healthy. You can check the status:
+3. Start all services:
 ```bash
-docker-compose ps
+docker compose up -d --build
 ```
 
-4. Access GraphQL Playgrounds:
+4. Wait for all services to be healthy. You can check the status:
+```bash
+docker compose ps
+```
+
+5. Access GraphQL Playgrounds:
    - Auth Service: http://localhost:3001/graphql
    - Schedule Service: http://localhost:3002/graphql
 
@@ -75,7 +90,7 @@ cd auth-service && npm install
 cd ../schedule-service && npm install
 ```
 
-2. Set up PostgreSQL databases locally
+2. Set up PostgreSQL databases locally and Redis
 
 3. Configure environment variables (see `.env.example` in each service)
 
@@ -100,7 +115,7 @@ cd schedule-service && npm run start:dev
 
 | Variable        | Description                    | Default                                |
 |-----------------|--------------------------------|----------------------------------------|
-| DATABASE_URL    | PostgreSQL connection string   | postgresql://postgres:...@auth-db/auth_db |
+| DATABASE_URL    | PostgreSQL connection string   | postgresql://postgres:...@postgres:5432/auth_db |
 | JWT_SECRET      | Secret key for JWT signing     | (change in production!)                |
 | JWT_EXPIRES_IN  | JWT token expiry time          | 24h                                    |
 | PORT            | Service port                   | 3001                                   |
@@ -109,8 +124,14 @@ cd schedule-service && npm run start:dev
 
 | Variable          | Description                    | Default                                    |
 |-------------------|--------------------------------|--------------------------------------------|
-| DATABASE_URL      | PostgreSQL connection string   | postgresql://postgres:...@schedule-db/schedule_db |
+| DATABASE_URL      | PostgreSQL connection string   | postgresql://postgres:...@postgres:5432/schedule_db |
 | AUTH_SERVICE_URL  | Auth Service GraphQL endpoint  | http://auth-service:3001/graphql           |
+| REDIS_HOST        | Redis host                     | localhost                                  |
+| REDIS_PORT        | Redis port                     | 6379                                       |
+| SMTP_HOST         | SMTP server host               | smtp.gmail.com                             |
+| SMTP_PORT         | SMTP server port               | 587                                        |
+| SMTP_USER         | SMTP username (Gmail address)  | (required)                                 |
+| SMTP_PASS         | SMTP password (App Password)   | (required)                                 |
 | PORT              | Service port                   | 3002                                       |
 
 ## GraphQL API Examples
@@ -378,6 +399,8 @@ mutation DeleteSchedule {
 2. **Unique Emails**: Customer emails must be unique
 3. **Schedule Conflicts**: A doctor cannot have overlapping schedules at the same time
 4. **Cascade Delete**: When a customer or doctor is deleted, their associated schedules are also deleted
+5. **Redis Caching**: List queries (customers, doctors, schedules) are cached in Redis (TTL: 60s). Cache is invalidated on create/update/delete mutations
+6. **Email Notification**: Email sent to customer via Gmail SMTP when a schedule is created or cancelled. Uses configurable HTML templates
 
 ## Project Structure
 
@@ -385,9 +408,13 @@ mutation DeleteSchedule {
 healthcare-scheduling/
 ├── docker-compose.yml
 ├── README.md
+├── graphql-examples.md
+├── db/
+│   └── init.sql
 ├── auth-service/
 │   ├── Dockerfile
 │   ├── docker-entrypoint.sh
+│   ├── .env.example
 │   ├── prisma/
 │   │   └── schema.prisma
 │   └── src/
@@ -399,13 +426,16 @@ healthcare-scheduling/
 └── schedule-service/
     ├── Dockerfile
     ├── docker-entrypoint.sh
+    ├── .env.example
     ├── prisma/
     │   └── schema.prisma
     └── src/
         ├── auth/
         ├── customer/
         ├── doctor/
+        ├── email/
         ├── prisma/
+        ├── redis/
         ├── schedule/
         ├── app.module.ts
         └── main.ts
@@ -414,12 +444,12 @@ healthcare-scheduling/
 ## Stopping the Services
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 To remove volumes as well:
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 ## License

@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { EmailService } from '../email/email.service';
+import { scheduleCreatedEmail, scheduleCancelledEmail } from '../email/email.templates';
 
 const CACHE_TTL = 60;
 
@@ -9,6 +11,7 @@ export class ScheduleService {
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
+    private emailService: EmailService,
   ) {}
 
   async create(objective: string, customerId: string, doctorId: string, scheduledAt: Date) {
@@ -53,6 +56,16 @@ export class ScheduleService {
     });
 
     await this.invalidateListCache();
+
+    this.emailService.sendMail(
+      scheduleCreatedEmail({
+        customerName: customer.name,
+        customerEmail: customer.email,
+        objective,
+        doctorName: doctor.name,
+        scheduledAt,
+      }),
+    ).catch(() => {});
 
     return schedule;
   }
@@ -120,13 +133,21 @@ export class ScheduleService {
   }
 
   async delete(id: string) {
-    await this.findOne(id);
+    const schedule = await this.findOne(id);
 
     await this.prisma.schedule.delete({
       where: { id },
     });
 
     await this.invalidateListCache();
+
+    this.emailService.sendMail(
+      scheduleCancelledEmail({
+        customerName: schedule.customer!.name,
+        customerEmail: schedule.customer!.email,
+        objective: schedule.objective,
+      }),
+    ).catch(() => {});
 
     return true;
   }
